@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}MailRouter{% endblock %}</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/main.css') }}"
+    />
+    {% block extra_css %}{% endblock %}
+  </head>
+  <body>
+    <!-- Flash messages -->
+    <div class="flash-container" id="flashContainer">
+      {% with messages = get_flashed_messages(with_categories=true) %} {% for
+      category, message in messages %}
+      <div class="flash {{ category }}">
+        {% if category == 'success' %}✓{% else %}✕{% endif %} {{ message }}
+      </div>
+      {% endfor %} {% endwith %}
+    </div>
+
+    {% block body %}{% endblock %}
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+  </body>
+</html>
