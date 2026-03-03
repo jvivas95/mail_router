@@ -4,7 +4,7 @@ from email.mime.text import MIMEText # Libreria para crear el contenido del corr
 from datetime import datetime # Libreria para manejar fechas y horas
 from models.database import get_db, get_active_recipients # Funciones para interactuar con la base de datos
 
-def get_next_recipients():
+def get_next_recipient():
     """Devuelve el siguiente destinatario en la rotación y avanza el índice para la próxima vez."""
     recipients = get_active_recipients() # Obtener la lista de destinatarios activos desde la base de datos
     if not recipients:
