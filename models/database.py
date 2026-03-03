@@ -67,3 +67,11 @@ def get_emails(limit=50, offset=0) -> list:
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+def get_active_recipients() -> list:
+    conn = get_db()
+    rows = conn.execute(
+        'SELECT * FROM recipients WHERE active = 1 ORDER BY order_index, id'
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
