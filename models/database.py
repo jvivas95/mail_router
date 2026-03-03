@@ -60,18 +60,20 @@ def init_db() -> None:
 # FUNCIONES DE CONSULTA
 
 def get_emails(limit=50, offset=0) -> list:
+    """Función para obtener los emails de la base de datos con paginación."""
     conn = get_db()
     rows = conn.execute(
         'SELECT * FROM emails ORDER BY date_received DESC LIMIT ? OFFSET ?',
         (limit, offset)
-    ).fetchall()
+    ).fetchall() # fetchall() devuelve una lista de filas, cada una como un objeto Row que se puede convertir a dict
     conn.close()
-    return [dict(r) for r in rows]
+    return [dict(r) for r in rows] # Convertir cada fila a dict para facilitar su uso en la aplicación
 
 def get_active_recipients() -> list:
+    """Función para obtener los destinatarios activos de la base de datos."""
     conn = get_db()
     rows = conn.execute(
         'SELECT * FROM recipients WHERE active = 1 ORDER BY order_index, id'
-    ).fetchall()
+    ).fetchall() # fetchall() devuelve una lista de filas, cada una como un objeto Row que se puede convertir a dict
     conn.close()
-    return [dict(r) for r in rows]
+    return [dict(r) for r in rows] # Convertir cada fila a dict para facilitar su uso en la aplicación
