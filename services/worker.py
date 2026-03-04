@@ -1,15 +1,16 @@
 # services/worker.py
 import datetime
-import threading # Para manejar el worker en un hilo separado
-import time # Para simular el procesamiento de correos
+import threading  # librería estándar de Python para ejecutar código en paralelo (threads)
+import time # librería estándar de Python para manejar el tiempo, utilizada para implementar retrasos entre las ejecuciones del worker
 from config import load_config # Para cargar la configuración del worker
 from models.database import get_db # Para registrar los correos procesados en la base de datos
 from services.mail_reader import fetch_unseen_emails # Para obtener los correos no leídos del servidor IMAP
 from services.mail_sender import send_email, get_next_recipient # Para enviar correos electrónicos a los destinatarios correspondientes
 
 # Variables globales del módulo (estado del worker)
-_worker_running = False
-_worker_thread = None
+# El guion bajo _ indica que es una variable privada del módulo, no debe ser accedida directamente desde fuera del módulo.
+_worker_running = False # Interruptor del worker, indica si el worker está en ejecución o no.
+_worker_thread = None # Variable para almacenar la referencia al hilo del worker, se utiliza para controlar la ejecución del worker en segundo plano.
 
 def is_running():
     """Devuelve True si el worker está en ejecución, False en caso contrario."""
@@ -17,7 +18,7 @@ def is_running():
 
 def process_inbox(cfg: dict) -> int:
     """Lectura de correos nuevos, los registra y los reenvía.
-    Retornoa: nº de correos procesados, o -1 si hay errores."""
+    Retorna: nº de correos procesados, o -1 si hay errores."""
     try:
         emails = fetch_unseen_emails(cfg) # Obtener los correos no leídos del servidor IMAP utilizando la configuración proporcionada (cfg).
         print(f"[worker] {len(emails)} correos no leídos encontrados.") # Imprimir el número de correos no leídos encontrados para fines de depuración.
@@ -32,7 +33,7 @@ def process_inbox(cfg: dict) -> int:
     
     processed = 0 # Contador para el número de correos procesados exitosamente.
     
-    for em in emails:
+    for em in emails: # Bucle que itera sobre cada correo no leído obtenido del servidor IMAP para procesarlo individualmente.
         # Evitar duplicados: comprobación si ya se ha procesado este UID
         existing = conn.execute(
             'SELECT id FROM emails WHERE uid=?',
@@ -41,7 +42,7 @@ def process_inbox(cfg: dict) -> int:
         if existing:
             continue # Si el correo electrónico ya ha sido registrado, se omite y se continúa con el siguiente correo en la lista.
         
-        # Guardar en la base de datos
+        # El correo se guarda en la base de datos con el estado 'pending'. Se realiza antes del reenvío para asegurar que quede registrado incluso si el proceso de reenvío falla posteriormente.
         conn.execute("""
             INSERT INTO emails (uid, sender, subject, date_received, body, status)
             VALUES (?, ?, ?, ?, ?, 'pending')
@@ -51,8 +52,8 @@ def process_inbox(cfg: dict) -> int:
         conn.commit() # Guardar los cambios en la base de datos después de insertar el nuevo correo electrónico.
         
         # Obtención del próximo destinatario en la rotación para reenviar el correo electrónico. Se utiliza la función get_next_recipient para obtener el destinatario actual y avanzar el índice de rotación.
-        recipient, _= get_next_recipient()
-        
+        recipient, _= get_next_recipient() # Utilización de _ para ignorar el segundo valor devuelto por get_next_recipient, que es el índice de rotación actualizado, ya que no se necesita en este contexto.
+        # Si no hay destinatarios disponibles, se actualiza el estado del correo electrónico a 'no_recipients' en la base de datos y se omite el proceso de reenvío para este correo electrónico.
         if not recipient:
             conn.execute(
                 "UPDATE emails SET status = 'no_recipients' WHERE uid=?",
@@ -88,10 +89,10 @@ def process_inbox(cfg: dict) -> int:
     conn.close() # Cerrar la conexión a la base de datos después de procesar todos los correos electrónicos.
     return processed # Devolver el número de correos electrónicos que se procesaron exitosamente.
 
-def _worker_loop():
+def _worker_loop(): # Se utiliza un guion bajo al inicio del nombre de la función para indicar que es privada del módulo, no se debe llamar directamente desde fuera.
     """Bucle infinito que se ejecuta en un thread separado para procesar la bandeja de entrada a intervalos regulares definidos en la configuración."""
     global _worker_running # Indica que el worker está en ejecución, se utiliza para controlar el bucle infinito del worker.
-    while _worker_running:
+    while _worker_running: # Bucle infinito que se ejecuta mientras el worker esté activo. El worker se detendrá cuando _worker_running se establezca en False.
         cfg = load_config() # Cargar la configuración del worker para obtener los parámetros necesarios para procesar la bandeja de entrada, como los intervalos de tiempo entre cada ejecución.
         if cfg.get('active', False): # Verificar si el worker está activo según la configuración. Si el valor de 'active' es True, se procede a procesar la bandeja de entrada; de lo contrario, se omite el procesamiento.
             process_inbox(cfg) # Llamar a la función process_inbox para procesar los correos electrónicos en la bandeja de entrada utilizando la configuración cargada.
