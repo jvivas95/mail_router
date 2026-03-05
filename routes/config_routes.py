@@ -12,7 +12,7 @@ from config import load_config, save_config # Importamos las funciones necesaria
 # Creación del Blueprint para agrupar todas las rutas relacionadas con la configuración.
 config_bp = Blueprint('config_routes', __name__)
 
-
+# El decorador @route conecta la URL '/config' con la función update(). Solo acepta solicitudes POST.
 @config_bp.route('/config', methods=['POST'])
 def update():
     cfg = load_config() # Cargamos la configuración actual
