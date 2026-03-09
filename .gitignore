@@ -1,0 +1,14 @@
+# Base de datos
+mailrouter.db
+
+# Configuración con credenciales
+config.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Entornos virtuales
+venv/
+env/
