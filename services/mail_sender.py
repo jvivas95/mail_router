@@ -8,7 +8,7 @@ from models.database import (
     get_db,
     get_active_recipients,
     get_rotation_state,
-    set_rotation_index
+    set_rotation_state
     )
 
 def get_next_recipient():
@@ -36,6 +36,8 @@ def get_next_recipient():
     recipient = recipients[idx] # Obtener el destinatario actual según el índice
     next_idx = (idx + 1) % len(recipients) # Calcular el siguiente índice de rotación
     
+    set_rotation_state(next_idx) # Persistir el índice para que la rotación avance en próximos envíos
+
     return recipient, idx # Devolver el destinatario actual y el índice utilizado para esta rotación
     
     # # Guardar el nuevo índice en la base de datos

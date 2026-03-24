@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Detalle del Email{% endblock %}
+{% block body %}
+
+<div class="container mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-4">Detalle del Email</h1>
+    
+    <div class="bg-gray-800 p-4 rounded-lg shadow-md">
+        <p><span class="font-semibold">ID:</span> {{ email.id }}</p>
+        <p><span class="font-semibold">Asunto:</span> {{ email.subject }}</p>
+        <p><span class="font-semibold">Remitente:</span> {{ email.sender }}</p>
+        <p><span class="font-semibold">Destinatario:</span> {{ email.recipient }}</p>
+        <p><span class="font-semibold">Fecha de Recepción:</span> {{ email.received_at }}</p>
+        <hr class="my-4 border-gray-700">
+        <div>
+            <h2 class="text-xl font-semibold mb-2">Contenido del Email:</h2>
+            <pre class="bg-gray-900 p-4 rounded-lg overflow-x-auto">{{ email.content }}</pre>
+        </div>
+    </div>
+
+    <a href="{{ url_for('dashboard.index') }}" class="inline-block mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors duration-300">Volver al Dashboard</a>
+</div>
+{% endblock %}
