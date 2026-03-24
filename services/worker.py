@@ -1,4 +1,5 @@
-# services/worker.py
+# services/worker.py - Thread de monitoreo en segundo plano
+
 import threading  # librería estándar de Python para ejecutar código en paralelo (threads)
 import time # librería estándar de Python para manejar el tiempo, utilizada para implementar retrasos entre las ejecuciones del worker
 import traceback # librería estándar de Python para manejar y mostrar trazas de errores, utilizada para depurar errores que puedan ocurrir durante la ejecución del worker
