@@ -16,6 +16,7 @@ recipients_bp = Blueprint('recipients', __name__)
 # El decorador @route conecta la URL '/recipients/add' con la función add(). Solo acepta solicitudes POST.
 @recipients_bp.route('/recipients/add', methods=['POST']) # Ruta para agregar un nuevo destinatario. Solo acepta solicitudes POST.
 def add():
+    """Agrega un nuevo destinatario a la base de datos."""
     name = request.form.get('name', "").strip() # Obtenemos el nombre del formulario y lo limpiamos de espacios
     email = request.form.get('email', "").strip() # Obtenemos el email del formulario y lo limpiamos de espacios
     
@@ -35,6 +36,7 @@ def add():
 # El decorador @route conecta la URL '/recipients/<int:rid>/toggle' con la función toggle(). Solo acepta solicitudes POST.
 @recipients_bp.route('/recipients/<int:rid>/toggle', methods=['POST']) # Ruta para activar/desactivar un destinatario. Solo acepta solicitudes POST.
 def toggle(rid):
+    """Alterna el estado de un destinatario en la base de datos."""
     toggle_recipient(rid) # Alternamos el estado del destinatario en la base de datos
     flash('Destinatario actualizado', 'success') # Mostramos un mensaje de éxito al usuario
     return redirect(url_for('dashboard.index')) # Redirigimos al dashboard
@@ -42,6 +44,7 @@ def toggle(rid):
 
 @recipients_bp.route('/recipients/<int:rid>/delete', methods=['POST']) # Ruta para eliminar un destinatario. Solo acepta solicitudes POST.
 def delete(rid):
+    """Elimina un destinatario de la base de datos."""
     delete_recipient(rid) # Eliminamos el destinatario de la base de datos
     flash('Destinatario eliminado', 'success') # Mostramos un mensaje de éxito al usuario
     return redirect(url_for('dashboard.index')) # Redirigimos al dashboard
@@ -50,6 +53,7 @@ def delete(rid):
 # El decorador @route conecta la URL '/recipients/<int:rid>/update' con la función update(). Solo acepta solicitudes POST.
 @recipients_bp.route('/recipients/<int:rid>/update', methods=['POST']) # Ruta para actualizar un destinatario. Solo acepta solicitudes POST.
 def update(rid):
+    """Actualiza un destinatario en la base de datos."""
     name = request.form.get('name', "").strip() # Obtenemos el nuevo nombre del formulario y lo limpiamos de espacios
     email = request.form.get('email', "").strip() # Obtenemos el nuevo email del formulario y lo limpiamos de espacios
     
