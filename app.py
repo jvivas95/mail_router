@@ -3,6 +3,7 @@
 from flask import Flask
 from models.database import init_db
 from config import load_config
+from services.worker import start_worker, stop_worker
 
 from routes.dashboard import dashboard_bp
 from routes.recipients import recipients_bp
