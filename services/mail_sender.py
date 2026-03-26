@@ -93,8 +93,8 @@ def build_forward_email(original: dict, recipient: dict, from_address: str) -> M
         f"MailRouter Sistema Automático"
     )
     
-    fwd.attach(MIMEMultipart(text, "plain")) # Adjuntar la parte de texto plano al mensaje multipart
-    fwd.attach(MIMEMultipart(html, "html")) # Adjuntar la parte HTML al mensaje multipart
+    fwd.attach(MIMEText(text, "plain")) # Adjuntar la parte de texto plano al mensaje multipart
+    fwd.attach(MIMEText(html, "html")) # Adjuntar la parte HTML al mensaje multipart
     
     return fwd # Devolver el mensaje de reenvío construido
 

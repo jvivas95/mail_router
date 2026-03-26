@@ -91,7 +91,7 @@ def check_now():
         flash('Configura tu correo electrónico y contraseña para usar esta función', 'error')
         return redirect(url_for('dashboard.index')) # Redirigimos al dashboard
     
-    n = process_inbox() # Procesamos la bandeja de entrada y obtenemos el número de emails procesados
+    n = process_inbox(cfg) # Procesamos la bandeja de entrada y obtenemos el número de emails procesados
     if n >= 0: # Si se procesaron 0 o más emails, mostramos un mensaje de éxito
         flash(f'Procesados {n} emails. ¡Buen trabajo!', 'success') # Si se procesaron 9 o más emails, mostramos un mensaje de éxito
     else: # Si hubo un error al procesar la bandeja de entrada, mostramos un mensaje de error
