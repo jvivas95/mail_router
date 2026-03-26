@@ -50,7 +50,9 @@ def _forward_pending_emails(conn, cfg:dict) -> int:
             'sender': row['sender'] or '', # Si el valor del remitente es None, se asigna una cadena vacía para evitar errores al construir el correo electrónico a reenviar.
             'subject': row['subject'] or '(sin asunto)', # Si el valor del asunto es None, se asigna '(sin asunto)' para evitar errores al construir el correo electrónico a reenviar.
             'date': row['date_received'] or '', # Si el valor de la fecha de recepción es None, se asigna una cadena vacía para evitar errores al construir el correo electrónico a reenviar.
-            'body': row['body'] or '' # Si el valor del cuerpo es None, se asigna una cadena vacía para evitar errores al construir el correo electrónico a reenviar.
+            'body': row['body'] or '', # Si el valor del cuerpo es None, se asigna una cadena vacía para evitar errores al construir el correo electrónico a reenviar.
+            'attachments': [],
+            'raw_msg': None
         }
         
         try:
@@ -88,14 +90,28 @@ def process_inbox(cfg: dict) -> int:
         traceback.print_exc() # Imprimir la traza completa del error para obtener más detalles sobre el error que ocurrió durante la obtención de los correos no leídos.
         return -1 # Devolver -1 para indicar que hubo un error al procesar los correos electrónicos.
     
-    # if not emails: # Si no hay correos no leídos, se devuelve 0 para indicar que no se procesaron correos electrónicos.
-    #     return 0
+    if not emails: # Si no hay correos no leídos, se devuelve 0 para indicar que no se procesaron correos electrónicos.
+        return 0
     
     conn = get_db() # Obtener la conexión a la base de datos para registrar los correos procesados.
-    
-    # processed = 0 # Contador para el número de correos procesados exitosamente.
+    processed = 0 # Contador para el número de correos procesados exitosamente.
     
     for em in emails: # Bucle que itera sobre cada correo no leído obtenido del servidor IMAP para procesarlo individualmente.
+        
+        # DEBUG — Imprimir información detallada del correo electrónico para depuración, incluyendo el asunto, el número de adjuntos detectados, los detalles de cada adjunto y la estructura MIME completa del correo electrónico.
+        # Esto es útil para verificar que se están obteniendo correctamente los correos electrónicos y sus adjuntos, y para identificar posibles problemas con la estructura de los correos electrónicos que puedan afectar el proceso de reenvío.
+        print(f"\n{'='*50}")
+        print(f"SUBJECT: {em['subject']}")
+        print(f"ADJUNTOS DETECTADOS: {len(em['attachments'])}")
+        for i, att in enumerate(em['attachments']):
+            print(f"  [{i}] filename='{att['filename']}' maintype='{att['maintype']}' subtype='{att['subtype']}'")
+        
+        # Imprimir la estructura MIME completa del correo
+        print("\nESTRUCTURA MIME:")
+        for part in em['raw_msg'].walk():
+            print(f"  content_type={part.get_content_type()} | disposition={part.get('Content-Disposition','ninguna')} | filename={part.get_filename()}")
+        print('='*50)
+        
         # Evitar duplicados: comprobación si ya se ha procesado este UID
         # Verificar si el correo electrónico con el UID actual ya ha sido registrado en la base de datos para evitar procesar correos duplicados.
         existing = conn.execute('SELECT id FROM emails WHERE uid=?',(em['uid'],)).fetchone()
@@ -104,53 +120,51 @@ def process_inbox(cfg: dict) -> int:
         
         # El correo se guarda en la base de datos con el estado 'pending'. Se realiza antes del reenvío para asegurar que quede registrado incluso si el proceso de reenvío falla posteriormente.
         conn.execute("""
-            INSERT INTO emails (uid, sender, subject, date_received, body, status)
-            VALUES (?, ?, ?, ?, ?, 'pending')
+            INSERT INTO emails (uid, sender, subject, date_received, body, status, attachments_count)
+            VALUES (?, ?, ?, ?, ?, 'pending', ?)
             """,
-            (em['uid'], em['sender'], em['subject'], datetime.now().isoformat(), em['body'])
+            (em['uid'], em['sender'], em['subject'], datetime.now().isoformat(), em['body'], len(em['attachments']))
         )
         conn.commit() # Guardar los cambios en la base de datos después de insertar el nuevo correo electrónico.
         
-    #     # Obtención del próximo destinatario en la rotación para reenviar el correo electrónico. Se utiliza la función get_next_recipient para obtener el destinatario actual y avanzar el índice de rotación.
-    #     recipient, _= get_next_recipient() # Utilización de _ para ignorar el segundo valor devuelto por get_next_recipient, que es el índice de rotación actualizado, ya que no se necesita en este contexto.
-    #     # Si no hay destinatarios disponibles, se actualiza el estado del correo electrónico a 'no_recipients' en la base de datos y se omite el proceso de reenvío para este correo electrónico.
-    #     if not recipient:
-    #         conn.execute(
-    #             "UPDATE emails SET status = 'no_recipients' WHERE uid=?",
-    #             (em['uid'],)
-    #         )
-    #         conn.commit() # Si no hay destinatarios disponibles, se actualiza el estado del correo electrónico en la base de datos a 'no_recipients' para indicar que no se pudo reenviar debido a la falta de destinatarios.
-    #         continue
+        # Obtención del próximo destinatario en la rotación para reenviar el correo electrónico. Se utiliza la función get_next_recipient para obtener el destinatario actual y avanzar el índice de rotación.
+        recipient, _= get_next_recipient() # Utilización de _ para ignorar el segundo valor devuelto por get_next_recipient, que es el índice de rotación actualizado, ya que no se necesita en este contexto.
+        # Si no hay destinatarios disponibles, se actualiza el estado del correo electrónico a 'no_recipients' en la base de datos y se omite el proceso de reenvío para este correo electrónico.
+        if not recipient:
+            conn.execute(
+                "UPDATE emails SET status = 'no_recipients' WHERE uid=?",
+                (em['uid'],)
+            )
+            conn.commit() # Si no hay destinatarios disponibles, se actualiza el estado del correo electrónico en la base de datos a 'no_recipients' para indicar que no se pudo reenviar debido a la falta de destinatarios.
+            continue
         
-    #     try:
-    #         # Construcción y envío del email utilizando la función send_email, que maneja la conexión al servidor SMTP y el envío del correo electrónico al destinatario obtenido en la rotación.
-    #         fwd = build_forward_email(em, recipient, cfg['email_address']) # Construir el correo electrónico a reenviar utilizando la función build_forward_email, que crea un nuevo mensaje de correo electrónico con el contenido del correo original y lo dirige al destinatario actual.
-    #         send_email(fwd, recipient['email'], cfg) # Enviar el correo electrónico utilizando la función send_email, que maneja la conexión al servidor SMTP y el envío del correo electrónico al destinatario obtenido en la rotación.
+        try:
+            # Construcción y envío del email utilizando la función send_email, que maneja la conexión al servidor SMTP y el envío del correo electrónico al destinatario obtenido en la rotación.
+            fwd = build_forward_email(em, recipient, cfg['email_address']) # Construir el correo electrónico a reenviar utilizando la función build_forward_email, que crea un nuevo mensaje de correo electrónico con el contenido del correo original y lo dirige al destinatario actual.
+            send_email(fwd, recipient['email'], cfg) # Enviar el correo electrónico utilizando la función send_email, que maneja la conexión al servidor SMTP y el envío del correo electrónico al destinatario obtenido en la rotación.
             
-    #         # Actualización del estado a 'forwarded' en la base de datos después de enviar el correo electrónico exitosamente, junto con la información del destinatario al que se reenviará y la fecha y hora del reenvío.
-    #         conn.execute("""
-    #                     UPDATE emails SET forwarded_to = ?, forwarded_at = ?, status = 'forwarded'
-    #                     WHERE uid = ?
-    #                     """,
-    #                     (f"{recipient['name']} <{recipient['email']}>", datetime.now().isoformat(), em['uid'])
-    #                     )
-    #         conn.commit() # Guardar los cambios en la base de datos después de actualizar el estado del correo electrónico.
+            # Actualización del estado a 'forwarded' en la base de datos después de enviar el correo electrónico exitosamente, junto con la información del destinatario al que se reenviará y la fecha y hora del reenvío.
+            conn.execute("""
+                        UPDATE emails SET forwarded_to = ?, forwarded_at = ?, status = 'forwarded'
+                        WHERE uid = ?
+                        """,
+                        (f"{recipient['name']} <{recipient['email']}>", datetime.now().isoformat(), em['uid'])
+                        )
+            conn.commit() # Guardar los cambios en la base de datos después de actualizar el estado del correo electrónico.
             
-    #         processed += 1 # Incrementar el contador de correos procesados exitosamente.
+            processed += 1 # Incrementar el contador de correos procesados exitosamente.
         
-    #     except Exception as e:
-    #         print(f"[Worker] Error al reenviar: {e}") # Si hay un error al reenviar el correo electrónico, se imprime el error para fines de depuración.
-    #         conn.execute(
-    #             "UPDATE emails SET status = 'error' WHERE uid = ?",
-    #             (em['uid'],)
-    #         )
-    #         conn.commit() # Si ocurre un error al reenviar el correo electrónico, se actualiza el estado del correo electrónico en la base de datos a 'error' para indicar que hubo un problema durante el proceso de reenvío.
-    
-    # conn.close() # Cerrar la conexión a la base de datos después de procesar todos los correos electrónicos.
+        except Exception as e:
+            print(f"[Worker] Error al reenviar: {e}") # Si hay un error al reenviar el correo electrónico, se imprime el error para fines de depuración.
+            conn.execute(
+                "UPDATE emails SET status = 'error' WHERE uid = ?",
+                (em['uid'],)
+            )
+            conn.commit() # Si ocurre un error al reenviar el correo electrónico, se actualiza el estado del correo electrónico en la base de datos a 'error' para indicar que hubo un problema durante el proceso de reenvío.
     
     # Llamar a la función _forward_pending_emails para intentar reenviar los correos electrónicos que están en estado 'pending', 'no_recipients' o 'error',
     # y obtener el número de correos electrónicos que se procesaron exitosamente durante este intento de reenvío de correos pendientes.
-    processed = _forward_pending_emails(conn, cfg) 
+    processed += _forward_pending_emails(conn, cfg) 
     
     conn.close() # Cerrar la conexión a la base de datos después de procesar los correos electrónicos pendientes para liberar recursos y evitar posibles bloqueos en la base de datos.
     return processed # Devolver el número de correos electrónicos que se procesaron exitosamente.

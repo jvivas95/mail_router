@@ -104,16 +104,27 @@ def get_attachments(msg: email.message.EmailMessage) -> list:
     
     for part in msg.walk():
         # Un archivo adjunto siempre tiene Content-Disposition: attachment
-        disposition = str(part.get("ContentDisposition", ""))
-        if "attachment" not in disposition:
-            continue
+        disposition = str(part.get("Content-Disposition", ""))
+        content_type = part.get_content_type()
         
+        # Obtenemos el nombre del archivo adjunto. Puede estar en el header 'filename' o 'name', o puede no estar presente (en cuyo caso se asigna un nombre genérico).
         filename = part.get_filename()
         if not filename:
+            filename = part.get_param('name')
+        if not filename and 'attachment' not in disposition:
             continue
-        
-        # Decodificación del nombre del archivo (puede venir codificado)
-        filename = decode_str(filename)
+        if not filename:
+            filename = f"adjunto_{len(attachments)+1}"
+
+        # Decodificar nombre — puede venir como =?UTF-8?Q?...?= o =?UTF-8?B?...?=
+        from email.header import decode_header as _dh
+        decoded_parts = _dh(filename)
+        filename = ""
+        for part_bytes, charset in decoded_parts:
+            if isinstance(part_bytes, bytes):
+                filename += part_bytes.decode(charset or "utf-8", errors="replace")
+            else:
+                filename += part_bytes
         
         # Obtención del contenido en bytes
         payload = part.get_payload(decode=True)
@@ -170,6 +181,7 @@ def fetch_unseen_emails(cfg: dict) -> list:
                 'subject': decode_str(msg.get('Subject', '(sin asunto)')), # Decodifica el encabezado 'Subject' para obtener el asunto del correo electrónico. Si el encabezado no está presente, se devuelve '(sin asunto)'.
                 'date': decode_str(msg.get('Date', '')), # Decodifica el encabezado 'Date' para obtener la fecha del correo electrónico. Si el encabezado no está presente, se devuelve una cadena vacía.
                 'body': get_body(msg), # Obtiene el cuerpo del correo electrónico utilizando la función get_body, que maneja correos con múltiples partes (multipart) y decodifica el contenido de texto.
+                'attachments': get_attachments(msg), # Obtiene los archivos adjuntos del correo electrónico utilizando la función get_attachments, que extrae los adjuntos como una lista de diccionarios con su nombre, datos y tipo MIME.
                 'raw_msg': msg # Objeto original para reenviar o procesar posteriormente sin perder información. Esto permite acceder a cualquier parte del correo electrónico que pueda ser necesaria en el futuro, como los archivos adjuntos o los encabezados adicionales.
             })
         

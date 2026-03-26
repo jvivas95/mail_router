@@ -25,9 +25,16 @@ def init_db() -> None:
             body TEXT,
             forwarded_to TEXT,
             forwarded_at TEXT,
-            status TEXT DEFAULT 'pending'
+            status TEXT DEFAULT 'pending',
+            attachments_count INTEGER DEFAULT 0
         )
     ''')
+    
+    # Agregar la columna attachments_count si no existe (para BDs existentes)
+    try:
+        c.execute('ALTER TABLE emails ADD COLUMN attachments_count INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass  # La columna ya existe, se ignora
 
     c.execute('''
         CREATE TABLE IF NOT EXISTS recipients (

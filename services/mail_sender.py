@@ -1,10 +1,15 @@
 # services/mail_sender.py - Reenvío de mails vía SMTP y gestión de rotación
 
 import smtplib # Libreria para enviar correos
+import mimetypes # Libreria para detectar el tipo MIME de los archivos adjuntos
 
 from email.mime.multipart import MIMEMultipart # Libreria para crear correos con múltiples partes (texto, HTML, archivos adjuntos)
 from email.mime.text import MIMEText # Libreria para crear el contenido del correo
 from email.mime.base import MIMEBase # Libreria para manejar archivos adjuntos
+from email.mime.application import MIMEApplication # Libreria para manejar archivos adjuntos de tipo aplicación (como PDFs, Word, etc.)
+from email.mime.image import MIMEImage # Libreria para manejar archivos adjuntos de tipo imagen
+from email.mime.audio import MIMEAudio # Libreria para manejar archivos adjuntos de tipo audio
+from email.utils import encode_rfc2231 # Libreria para codificar nombres de archivos adjuntos con caracteres especiales
 from email import encoders # Libreria para codificar archivos adjuntos
 from datetime import datetime # Libreria para manejar fechas y horas
 from models.database import (
@@ -55,72 +60,58 @@ def get_next_recipient():
 
 
 def build_forward_email(original: dict, recipient: dict, from_address: str) -> MIMEMultipart:
-    """
-        Construye el mensaje de reenvío en formato HTML + texto plano.
-    """
+    import copy
+
+    # print (f"[DEBUG] Claves en original: {list(original.keys())}")
+
+    # Clonar el mensaje original completo — adjuntos incluidos
+    raw = original["raw_msg"]
+    # fwd = copy.deepcopy(raw)
     
-    fwd = MIMEMultipart('mixed') # Crear un mensaje multipart para texto y HTML. Uso de 'mixed' para indicar que el correo tiene varias partes (texto, HTML, adjuntos)
-    fwd['Subject'] = f"Fwd: {original['subject']}" # Asunto del correo, prefijado con "Fwd:" para indicar que es un reenvío
-    fwd['From'] = from_address # Dirección del remitente (nuestra dirección de correo)
-    fwd['To'] = recipient['email'] # Dirección del destinatario (el agente al que se le asigna el correo)
-    
-    body_part = MIMEMultipart('alternative') # Crear una parte alternativa para texto y HTML (permite que el cliente de correo elija cuál mostrar)
-    
-    html = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 680px; margin: 0 auto;">
-        <div style="background: #1a1a2e; color: #e0e0e0; padding: 16px 24px; border-radius: 8px 8px 0 0;">
-            <p style="margin:0; font-size:13px; color:#7c83fd;">
-                📨 Mensaje reenviado desde <strong>{from_address}</strong>
-            </p>
-        </div>
-        <div style="border:1px solid #e0e0e0; border-top:none; padding:24px; border-radius:0 0 8px 8px;">
-            <table style="width:100%; font-size:13px; color:#555; margin-bottom:16px;">
-                <tr><td style="font-weight:600; width:80px; padding:4px 0;">De:</td><td>{original['sender']}</td></tr>
-                <tr><td style="font-weight:600; padding:4px 0;">Asunto:</td><td>{original['subject']}</td></tr>
-                <tr><td style="font-weight:600; padding:4px 0;">Fecha:</td><td>{original['date']}</td></tr>
-            </table>
-            <hr style="border:none; border-top:1px solid #eee; margin:16px 0;">
-            <div style="white-space:pre-wrap; color:#222; line-height:1.6;">{original['body']}</div>
-        </div>
-        <p style="text-align:center; font-size:11px; color:#aaa; margin-top:12px;">
-            Asignado a: <strong>{recipient['name']}</strong> — MailRouter Sistema Automático
-        </p>
-    </div>
-    """
-    
+    # Si tenemos el mensaje original, lo clonamos directamente (preservar adjuntos)
+    if raw is not None:
+        fwd = copy.deepcopy(raw)
+        del fwd["From"]
+        del fwd["To"]
+        del fwd["Cc"]
+        del fwd["Bcc"]
+        del fwd["Subject"]
+        del fwd["Message-ID"]
+        del fwd["Reply-To"]
+        fwd["From"]    = from_address
+        fwd["To"]      = recipient["email"]
+        fwd["Subject"] = f"Fwd: {original['subject']}"
+        
+        return fwd
+
+    # Fallback: construir desde texto (correos sin raw_msg — desde DB)
+    fwd = MIMEMultipart("alternative")
+    fwd["Subject"] = f"Fwd: {original['subject']}"
+    fwd["From"]    = from_address
+    fwd["To"]      = recipient["email"]
+
     text = (
         f"--- MENSAJE REENVIADO ---\n"
         f"De: {original['sender']}\n"
-        f"Asunto: {original['subject']}\n"
-        f"Fecha: {original['date']}\n\n"
+        f"Asunto: {original['subject']}\n\n"
         f"{original['body']}\n\n"
-        f"--- ASIGNADO A: {recipient['name']} ---\n"
-        f"MailRouter Sistema Automático"
+        f"---\nAsignado a: {recipient['name']}"
     )
-    
-    fwd.attach(MIMEText(text, "plain")) # Adjuntar la parte de texto plano al mensaje multipart
-    fwd.attach(MIMEText(html, "html")) # Adjuntar la parte HTML al mensaje multipart
-    
-    fwd.attach(body_part) # Adjuntar la parte alternativa (texto + HTML) al mensaje principal
-    
-    # Adjuntar cada archivo adjunto del correo original
-    for attachment in original.get('attachments', []):
-        part = MIMEBase(attachment['maintype'], attachment['subtype']) # Crear una parte MIME para el archivo adjunto
-        part.set_payload(attachment['data']) # Establecer el contenido del archivo adjunto
-        
-        # Codificar el archivo adjunto en base64 para que pueda ser enviado por correo electrónico
-        encoders.encode_base64(part)
-        
-        # Agregar encabezados para indicar que es un archivo adjunto y su nombre
-        part.add_header(
-            'Content-Disposition',
-            'attachment',
-            filename=attachment['filename']
-        )
-        
-        fwd.attach(part) # Adjuntar el archivo al mensaje multipart
-    
-    return fwd # Devolver el mensaje de reenvío construido
+    html = f"""
+    <div style="font-family:Arial,sans-serif; max-width:680px;">
+        <p style="color:#888; font-size:12px;">📨 Reenviado desde <strong>{from_address}</strong></p>
+        <hr>
+        <p><strong>De:</strong> {original['sender']}</p>
+        <p><strong>Asunto:</strong> {original['subject']}</p>
+        <hr>
+        <div style="white-space:pre-wrap;">{original['body']}</div>
+        <p style="color:#888; font-size:11px;">Asignado a: {recipient['name']}</p>
+    </div>
+    """
+    fwd.attach(MIMEText(text, "plain", "utf-8"))
+    fwd.attach(MIMEText(html, "html", "utf-8"))
+    return fwd
+
 
 def send_email(fwd_msg: MIMEMultipart, recipient_email: str, cfg: dict) -> None:
     """
@@ -129,4 +120,4 @@ def send_email(fwd_msg: MIMEMultipart, recipient_email: str, cfg: dict) -> None:
     with smtplib.SMTP(cfg['smtp_host'], cfg['smtp_port']) as server: # Conexión al servidor SMTP
         server.starttls() # Iniciar TLS para seguridad
         server.login(cfg['email_address'], cfg['email_password']) # Autenticación con el servidor SMTP
-        server.sendmail(cfg['email_address'], recipient_email, fwd_msg.as_string()) # Enviar el correo electrónico
+        server.sendmail(cfg['email_address'], recipient_email, fwd_msg.as_bytes())
