@@ -3,8 +3,10 @@
 import imaplib # Para conectarse al servidor IMAP y leer correos electrónicos
 import email # Para manipular los correos electrónicos como objetos de Python, lo que facilita el acceso a sus partes (encabezados, cuerpo, etc.)
 import email.message # Transforma el correo electrónico en un objeto de Python para facilitar su manipulación
+import re # Para usar expresiones regulares en la función html_to_text, que convierte HTML a texto legible
 
 from email.header import decode_header # Para decodificar los encabezados de los correos electrónicos, como el asunto y el remitente
+from html import unescape # Para convertir entidades HTML a caracteres normales en la función html_to_text, lo que mejora la legibilidad del texto extraído de correos electrónicos con formato HTML
 
 def decode_str(s: str | None) -> str:
     """Decodifica cabeceras del mail (asunto, remitente, etc...)
@@ -36,6 +38,21 @@ def safe_decode(payload: bytes, charset: str) -> str: # Payload es el contenido 
     return payload.decode('latin-1', errors='replace') # Si todos los intentos anteriores fallan, se intenta decodificar usando 'latin-1' como último recurso, ya que este encoding puede decodificar cualquier byte sin generar errores (aunque el resultado puede no ser correcto si el charset real es diferente).
 
 
+def html_to_text(html: str) -> str:
+    """Convierte HTML básico de email a texto legible."""
+    if not html:
+        return ""
+    text = re.sub(r'(?is)<(script|style).*?>.*?</\1>', '', html)
+    text = re.sub(r'(?i)<br\s*/?>', '\n', text)
+    text = re.sub(r'(?i)</p\s*>', '\n\n', text)
+    text = re.sub(r'(?i)</div\s*>', '\n', text)
+    text = re.sub(r'<[^>]+>', '', text)
+    text = unescape(text)
+    text = re.sub(r'\r\n?', '\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
 def get_body(msg: email.message.EmailMessage) -> str:
     """Obtener el cuerpo del correo electrónico, manejando correos con múltiples partes (multipart) y decodificando el contenido de texto."""
     body = "" # Variable para almacenar el cuerpo del correo electrónico. Se inicializa como una cadena vacía.
@@ -48,7 +65,8 @@ def get_body(msg: email.message.EmailMessage) -> str:
                 try:
                     payload = part.get_payload(decode=True) # Obtiene el contenido de la parte y lo decodifica si es necesario (por ejemplo, si está codificado en Base64).
                     if payload: # Si el payload no es None, se intenta decodificarlo usando la función safe_decode, que maneja diferentes encodings para evitar errores.
-                        body = safe_decode(payload, part.get_content_charset() or 'utf-8') # Se obtiene el charset de la parte para decodificar el payload. Si no se especifica un charset, se asume 'utf-8'.
+                        # body = safe_decode(payload, part.get_content_charset() or 'utf-8') # Se obtiene el charset de la parte para decodificar el payload. Si no se especifica un charset, se asume 'utf-8'.
+                        body = safe_decode(payload, part.get_content_charset() or 'utf-8') # Se obtiene el cuerpo del mensaje en formato HTML decodificado.
                         break # Si se encuentra el cuerpo del mensaje, se rompe el bucle para evitar procesar partes adicionales.
                 except Exception as e: # Si ocurre un error al obtener o decodificar el payload, se captura la excepción y se imprime un mensaje de error, pero se continúa con el siguiente intento de decodificación.
                     print(f"[mail_reader] Error al obtener el cuerpo del mensaje: {e}")
@@ -61,7 +79,8 @@ def get_body(msg: email.message.EmailMessage) -> str:
                     try:
                         payload = part.get_payload(decode=True) # Obtiene el contenido de la parte HTML y lo decodifica si es necesario.
                         if payload:
-                            body = safe_decode(payload, part.get_content_charset() or 'utf-8') # Se obtiene el charset de la parte HTML para decodificar el payload. Si no se especifica un charset, se asume 'utf-8'.
+                            html_body = safe_decode(payload, part.get_content_charset() or 'utf-8') # Se obtiene el cuerpo del mensaje en formato HTML decodificado.
+                            body = html_to_text(html_body) # Se convierte el cuerpo del mensaje de HTML a texto legible utilizando la función html_to_text.
                             break # Si se encuentra el cuerpo del mensaje en HTML, se rompe el bucle.
                     except Exception as e: # Si ocurre un error al obtener o decodificar el payload HTML, se captura la excepción y se imprime un mensaje de error.
                         print(f"[mail_reader] Error al obtener el cuerpo del mensaje HTML: {e}")
