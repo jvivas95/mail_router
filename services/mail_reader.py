@@ -98,6 +98,38 @@ def get_body(msg: email.message.EmailMessage) -> str:
     return body[:5000] # Devuelve el cuerpo del mensaje, truncado a 5000 caracteres para evitar problemas con mensajes extremadamente largos.
 
 
+def get_attachments(msg: email.message.EmailMessage) -> list:
+    """Extracción de los adjuntos del mail como lista de dicts."""
+    attachments = []
+    
+    for part in msg.walk():
+        # Un archivo adjunto siempre tiene Content-Disposition: attachment
+        disposition = str(part.get("ContentDisposition", ""))
+        if "attachment" not in disposition:
+            continue
+        
+        filename = part.get_filename()
+        if not filename:
+            continue
+        
+        # Decodificación del nombre del archivo (puede venir codificado)
+        filename = decode_str(filename)
+        
+        # Obtención del contenido en bytes
+        payload = part.get_payload(decode=True)
+        if not payload:
+            continue
+        
+        attachments.append({
+            "filename": filename,
+            "data": payload,
+            "maintype": part.get_content_maintype(),
+            "subtype": part.get_content_subtype()
+        })
+    
+    return attachments
+
+
 def fetch_unseen_emails(cfg: dict) -> list:
     """Conecta al servidor IMAP y devuelve los correos no leídos."""
     
