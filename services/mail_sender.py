@@ -1,8 +1,11 @@
 # services/mail_sender.py - Reenvío de mails vía SMTP y gestión de rotación
 
 import smtplib # Libreria para enviar correos
+
 from email.mime.multipart import MIMEMultipart # Libreria para crear correos con múltiples partes (texto, HTML, archivos adjuntos)
 from email.mime.text import MIMEText # Libreria para crear el contenido del correo
+from email.mime.base import MIMEBase # Libreria para manejar archivos adjuntos
+from email import encoders # Libreria para codificar archivos adjuntos
 from datetime import datetime # Libreria para manejar fechas y horas
 from models.database import (
     get_db,
@@ -56,10 +59,12 @@ def build_forward_email(original: dict, recipient: dict, from_address: str) -> M
         Construye el mensaje de reenvío en formato HTML + texto plano.
     """
     
-    fwd = MIMEMultipart('alternative') # Crear un mensaje multipart para texto y HTML. Uso de 'alternative' para indicar que el correo tiene varias partes (texto y HTML)
+    fwd = MIMEMultipart('mixed') # Crear un mensaje multipart para texto y HTML. Uso de 'mixed' para indicar que el correo tiene varias partes (texto, HTML, adjuntos)
     fwd['Subject'] = f"Fwd: {original['subject']}" # Asunto del correo, prefijado con "Fwd:" para indicar que es un reenvío
     fwd['From'] = from_address # Dirección del remitente (nuestra dirección de correo)
     fwd['To'] = recipient['email'] # Dirección del destinatario (el agente al que se le asigna el correo)
+    
+    body_part = MIMEMultipart('alternative') # Crear una parte alternativa para texto y HTML (permite que el cliente de correo elija cuál mostrar)
     
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 680px; margin: 0 auto;">
@@ -95,6 +100,25 @@ def build_forward_email(original: dict, recipient: dict, from_address: str) -> M
     
     fwd.attach(MIMEText(text, "plain")) # Adjuntar la parte de texto plano al mensaje multipart
     fwd.attach(MIMEText(html, "html")) # Adjuntar la parte HTML al mensaje multipart
+    
+    fwd.attach(body_part) # Adjuntar la parte alternativa (texto + HTML) al mensaje principal
+    
+    # Adjuntar cada archivo adjunto del correo original
+    for attachment in original.get('attachments', []):
+        part = MIMEBase(attachment['maintype'], attachment['subtype']) # Crear una parte MIME para el archivo adjunto
+        part.set_payload(attachment['data']) # Establecer el contenido del archivo adjunto
+        
+        # Codificar el archivo adjunto en base64 para que pueda ser enviado por correo electrónico
+        encoders.encode_base64(part)
+        
+        # Agregar encabezados para indicar que es un archivo adjunto y su nombre
+        part.add_header(
+            'Content-Disposition',
+            'attachment',
+            filename=attachment['filename']
+        )
+        
+        fwd.attach(part) # Adjuntar el archivo al mensaje multipart
     
     return fwd # Devolver el mensaje de reenvío construido
 
