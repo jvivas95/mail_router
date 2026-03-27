@@ -1,61 +1,72 @@
-{% extends "base.html" %} {% block title %}Correo — MailRouter{% endblock %} {%
-block body %}
-<div style="padding: 40px; max-width: 800px; margin: 0 auto">
-  <a href="/" class="back-btn">← Volver al dashboard</a>
+{% extends "base.html" %}
+{% block title %}Detalle del Email{% endblock %}
 
-  <div class="panel">
-    <div class="email-header">
-      <div class="email-subject-line">
-        {{ email.subject or '(sin asunto)' }}
-      </div>
-      <div class="meta-grid">
-        <div class="meta-label">De</div>
-        <div class="meta-value">{{ email.sender }}</div>
-
-        <div class="meta-label">Fecha</div>
-        <div class="meta-value">
-          {{ email.date_received[:19].replace('T', ' ') if email.date_received
-          else '—' }}
+{% block body %}
+<div class="container mx-auto div-6">
+    <h1 class="text-3xl font-bold mb-4">Detalle del Email</h1>
+    
+    <div class="bg-gray-800 div-4 rounded-lg shadow-md"> <!-- CONTENEDOR-->
+        <div class="p-4"> <!-- EMAIL HEADER -->
+            <div>
+                <div class="font-semibold">
+                    Asunto:
+                </div>
+                {{ email.subject or '(Sin Asunto)' }}
+            </div>
+            <div>
+                <div class="font-semibold">
+                    Remitente:
+                </div>
+                {{ email.sender }}
+            </div>
+            <div>
+                <div class="font-semibold">
+                    Fecha de Recepción:
+                </div>
+                {{ email.date_received[:19].replace('T', ' ') if email.date_received else '(Sin Fecha)' }} <!-- Formateamos la fecha para mostrar solo la parte de fecha y hora, eliminando los segundos y la 'T' -->
+            </div>
+            <div>
+                <div class="font-semibold">
+                    Estado del Email:
+                </div>
+                {% if email.status == 'forwarded' %} ✓ reenviado
+                {% elif email.status == 'pending' %}⏳ pendiente
+                {% elif email.status == 'error' %} ✕ error
+                {% else %}— sin destinatarios
+                {% endif %}
+            </div>
+            
+            {% if email.forwarded_to %}
+            <div>
+                <div class="font-semibold">
+                    Destinatario:
+                </div>
+                {{ email.forwarded_to }}
+            </div>
+            {% endif %}
+            {% if email.forwarded_at %}
+            <div>
+                <div class="font-semibold">
+                    Fecha de Reenvío:
+                </div>
+                {{ email.forwarded_at[:19].replace('T', ' ') if email.forwarded_at else '(Sin Fecha)' }}
+            </div>
+            {% endif %}
         </div>
 
-        <div class="meta-label">Estado</div>
-        <div class="meta-value">
-          <span class="tag tag-{{ email.status }}">
-            {% if email.status == 'forwarded' %}✓ reenviado {% elif email.status
-            == 'pending' %}⏳ pendiente {% elif email.status == 'error' %}✕
-            error {% else %}— sin destinatarios{% endif %}
-          </span>
+    <div> <!-- EMAIL BODY -->
+        <div class="p-4 border-t border-gray-700">
+            <div class="font-semibold mb-2">
+                Contenido del Email:
+            </div>
+            <div class="bg-gray-900 p-4 rounded text-sm whitespace-pre-wrap">
+                {{ email.body or '(Sin Contenido)' }}
+            </div>
         </div>
-
-        {% if email.forwarded_to %}
-        <div class="meta-label">Enviado a</div>
-        <div class="meta-value">{{ email.forwarded_to }}</div>
-        {% endif %} {% if email.forwarded_at %}
-        <div class="meta-label">Enviado el</div>
-        <div class="meta-value">
-          {{ email.forwarded_at[:19].replace('T',' ') }}
-        </div>
-        {% endif %}
-      </div>
     </div>
 
-    {% if email.forwarded_to %}
-    <div
-      style="
-        margin: 0 28px 0;
-        padding: 12px 16px;
-        background: rgba(67, 233, 123, 0.07);
-        border: 1px solid rgba(67, 233, 123, 0.2);
-        border-radius: 10px;
-        font-size: 13px;
-        color: #43e97b;
-      "
-    >
-      ✓ Reenviado a <strong>{{ email.forwarded_to }}</strong>
-    </div>
-    {% endif %}
-
-    <div class="email-body">{{ email.body or '(sin contenido)' }}</div>
-  </div>
+    <a href="{{ url_for('dashboard.index') }}" class="inline-block mt-6 divx-4 divy-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors duration-300 m-4 p-1">
+        Volver al Dashboard
+    </a>
 </div>
 {% endblock %}
