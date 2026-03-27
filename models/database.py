@@ -61,6 +61,16 @@ def init_db() -> None:
             (datetime.now().isoformat(),)
         )
 
+    c.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTERGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'user',
+                created_at TEXT
+            )
+    ''')
+
     conn.commit()
     conn.close()
 
