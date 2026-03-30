@@ -6,7 +6,7 @@ from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
 from functools import wraps
 
-from models import create_user, delete_user, get_user_by_id
+from models.database import create_user, delete_user, get_user_by_id
 
 users_bp = Blueprint('users', __name__)
 

@@ -32,7 +32,7 @@ def login():
             return redirect(url_for('auth.login'))
         
         # Crear objeto user e iniciar sesión
-        user = User(id=row['id'], username=row['username'], password=row['password'])
+        user = User(id=row['id'], username=row['username'], role=row['role'])
         
         login_user(user)
         
