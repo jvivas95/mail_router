@@ -2,6 +2,8 @@
 import sqlite3 # Módulo para manejar bases de datos SQLite
 from datetime import datetime # Módulo para manejar fechas y horas
 
+from werkzeug.security import generate_password_hash # Función para generar hashes de contraseñas, utilizada para crear usuarios de forma segura
+
 DB_FILE = 'mailrouter.db'
 
 def get_db() -> sqlite3.Connection:
@@ -199,3 +201,62 @@ def set_rotation_state(idx: int) -> None:
     )
     conn.commit() # Guardar los cambios en la base de datos
     conn.close() # Cerrar la conexión a la base de datos
+
+
+# FUNCIONES DE USUARIOS
+def get_user_by_id(uid: int) -> dict | None:
+    """Función para obtener un usuario por su ID."""
+    conn = get_db()
+    row = conn.execute(
+        'SELECT * FROM users WHERE id = ?',
+        (uid,)).fetchone() # fetchone() devuelve una sola fila o None si no hay resultados
+    conn.close()
+    return dict(row) if row else None # Convertir la fila a dict si existe, o devolver None
+
+
+def get_user_by_username(username: str) -> dict | None:
+    """Función para obtener un usuario por su nombre de usuario."""
+    conn = get_db()
+    row = conn.execute(
+        'SELECT * FROM users WHERE username = ?',
+        (username,)).fetchone() # fetchone() devuelve una sola fila o None si no hay resultados
+    conn.close()
+    return dict(row) if row else None # Convertir la fila a dict si existe, o devolver None
+
+
+def get_all_users() -> list:
+    """Función para obtener todos los usuarios de la base de datos."""
+    conn = get_db()
+    rows = conn.execute(
+        'SELECT * FROM users ORDER BY id ASC'
+    ).fetchall() # fetchall() devuelve una lista de filas, cada una como un objeto Row que se puede convertir a dict
+    conn.close()
+    return [dict(r) for r in rows] # Convertir cada fila a dict para facilitar su uso en la aplicación
+
+
+def create_user(username: str, password_hash: str, role: str = 'user') -> None:
+    """Función para crear un nuevo usuario en la base de datos."""
+    conn = get_db()
+    conn.execute(
+        'INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, ?)',
+        (username, password_hash, role, datetime.now().isoformat())
+    )
+    conn.commit() # Guardar los cambios en la base de datos
+    conn.close() # Cerrar la conexión a la base de datos
+
+
+def delete_user(uid: int) -> None:
+    """Función para eliminar un usuario de la base de datos."""
+    conn = get_db()
+    conn.execute('DELETE FROM users WHERE id = ?',(uid,)) # Eliminar el usuario con el ID especificado
+    conn.commit() # Guardar los cambios en la base de datos
+    conn.close() # Cerrar la conexión a la base de datos
+
+
+def create_default_admin():
+    """Función para crear un usuario admin por defecto si no existe. Se llama al iniciar la aplicación."""
+    conn = get_db()
+    count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0] # Contar el número de usuarios existentes en la base de datos
+    conn.close()
+    if count == 0: # Si no hay usuarios, se crea un usuario admin por defecto
+        create_user('admin', generate_password_hash('admin123'), 'admin') # Crear un usuario admin con nombre 'admin' y contraseña 'admin123'. Se recomienda cambiar esta contraseña después del primer inicio de sesión por razones de seguridad.
