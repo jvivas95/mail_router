@@ -8,10 +8,13 @@
     request -> maneja datos de solicitudes entrantes.
 """
 from flask import Blueprint, render_template, redirect, url_for, flash, request # Blueprint para organizar las rutas, render_template para renderizar las plantillas, redirect y url_for para redirigir a otras rutas, flash para mostrar mensajes
+from flask_login import login_required, current_user # Decorador para proteger rutas que requieren autenticación
+
 from models.database import (
     get_emails, get_stats, get_all_recipients,
     get_active_recipients, get_rotation_state,
-    get_email_by_id
+    get_email_by_id,
+    get_all_users
 )
 from services.worker import is_running, process_inbox, start_worker, stop_worker # Importamos las funciones necesarias del worker
 from config import load_config, save_config # Importamos las funciones necesarias para manejar la configuración
@@ -21,14 +24,16 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 # El decorador @route conecta la URL '/' con la función index().
 @dashboard_bp.route('/')
+@login_required # Protege la ruta para que solo usuarios autenticados puedan acceder a ella.
 def index():
     """Ruta principal del dashboard. Muestra mails recibidos y estado del worker."""
-    emails = get_emails() # Obtenemos los emails de la base de datos
+    emails = get_emails(limit=50) # Obtenemos los emails de la base de datos
     recipients = get_all_recipients() # Obtenemos los destinatarios de la base de datos
     active = get_active_recipients() # Obtenemos los destinatarios activos de la base de datos
     state = get_rotation_state() # Obtenemos el estado de rotación de la base de datos
     stats = get_stats() # Obtenemos las estadísticas de la base de datos
     cfg = load_config() # Cargamos la configuración actual
+    users = get_all_users() # Obtenemos los usuarios de la base de datos
     
     current_recipient = None # Inicializamos la variable para el destinatario actual
     if active and state: # Si hay destinatarios activos y la rotación está habilitada
@@ -44,12 +49,15 @@ def index():
         current_recipient = current_recipient,
         stats = stats,
         cfg = cfg,
-        worker_running = is_running()
+        worker_running = is_running(),
+        users = users,
+        current_user = current_user
     )
 
 
 # Ruta para iniciar el worker. Solo acepta solicitudes POST.
 @dashboard_bp.route('/worker/start', methods=['POST'])
+@login_required
 def worker_start():
     """Inicia el worker para procesar la bandeja de entrada."""
     cfg = load_config() # Cargamos la configuración actual
@@ -62,6 +70,7 @@ def worker_start():
 
 # Ruta para detener el worker. Solo acepta solicitudes POST.
 @dashboard_bp.route('/worker/stop', methods=['POST'])
+@login_required
 def worker_stop():
     """Detener el worker para procesar la bandeja de entrada."""
     cfg = load_config() # Cargamos la configuración actual
@@ -74,6 +83,7 @@ def worker_stop():
 
 # Ruta que muestra los detalles de un email específico. El <int:eid> indica que se espera un entero como parte de la URL, que se pasará a la función como argumento 'eid'.
 @dashboard_bp.route('/email/<int:eid>')
+@login_required
 def email_detail(eid):
     """Muestra los detalles de un email específico."""
     em = get_email_by_id(eid) # Obtenemos el email por su ID
@@ -84,6 +94,7 @@ def email_detail(eid):
 
 # Ruta para procesar la bandeja de entrada de inmediato. Solo acepta solicitudes POST.
 @dashboard_bp.route('/worker/check-now', methods=['POST'])
+@login_required
 def check_now():
     """Procesa la bandeja de entrada de inmediato."""
     cfg = load_config() # Cargamos la configuración actual
